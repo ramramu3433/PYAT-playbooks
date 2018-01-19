@@ -1,0 +1,7 @@
+---
+ - name: "test"
+   command: python update.py '{{ item._id }}'
+   register: output
+ - debug: var=output  
+ - debug: msg='The item id is  {{ item._id }} and Message is {{ item._source.message }} from {{ item._source.number }}'
+       
