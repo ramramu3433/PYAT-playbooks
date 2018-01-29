@@ -1,15 +1,18 @@
 ---
- - hosts: 127.0.0.1
+ - hosts: prolab
    vars:
     url2: 'http://192.168.54.101:9200/password_reset/request/'
+   
    tasks:
     - name: "Hitting"
       uri: url='{{ url2 }}_search'   headers='{"Content-type":"application/json"}' method=GET return_content=yes
-      register: output  
+      register: output
+      #delegate_to: 127.0.0.1  
     - debug: var=output.json.hits.total      
     #- name: "Testing playbook"
-    - include: test.yaml
+    - include: ldap.yaml
       static: no
       with_items: "{{ output.json.hits.hits }}"
-      when: output.json.hits.total>0
-    
+      when: output.json.hits.total>0 
+             
+      
