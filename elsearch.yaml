@@ -1,11 +1,11 @@
 ---
  - hosts: prolab
    vars:
-    url2: 'http://192.168.54.101:9200/password_reset/request/'
+    url2: 'http://192.168.54.74:9200/password_reset/request/'
    
    tasks:
     - name: "Hitting"
-      uri: url='{{ url2 }}_search'   headers='{"Content-type":"application/json"}' method=GET return_content=yes
+      uri: url='{{ url2 }}_search?q=status:new'   headers='{"Content-type":"application/json"}' method=GET return_content=yes
       register: output
       #delegate_to: 127.0.0.1  
     - debug: var=output.json.hits.total      

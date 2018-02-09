@@ -8,16 +8,20 @@
    shell: slappasswd -g -s password
    register: output   
  - set_fact: passwd={{ output.stdout }}
+ - debug: var=output.stdout
    when: dn != "0"
 
  - name: "Move template file for password change"
-   template: src=templates/pchange.ldiff.j2 dest=/home/labadmin/pchange.ldif
-   when:  item._source.message  == "PASSWORD RESET" 
-   when: dn != "0"
+   template: src=templates/pchange.ldiff.j2 dest=/home/labadmin/PYAT-sms-poc/pchange.ldif
+   when:  item._source.message  == "PWDRST" and  dn != "0"
 
  - name: "Password reseting"
    shell: ldapmodify -D cn="admin,dc=prolab,dc=com" -w we1c@me -f PYAT-sms-poc/pchange.ldif
-   when: item._source.message  == "PASSWORD RESET" 
+   when: item._source.message  == "PWDRST" and dn !=0
+ - name: "Message Format Error"
+   shell: python PYAT-sms-poc/send_sms.py "{{ number }}" "Kindly Use these Codes Password Reset-PWDRST /n Unlock Account-UNAC  Unlock Account and Reset Password-UNACR"
+   when: item._source.message != "PWDRST" 
+   become: yes
    when: dn != "0"
 
  - name: "ELk update"
@@ -28,8 +32,8 @@
 
  - name: "NA ELK update"
    command: python PYAT-sms-poc/update_na.py '{{item._id}}'
-   when: dn == "0"
- 
+   when: dn == "0" 
+    
  - name: "User notification" 
    command: python PYAT-sms-poc/send_sms.py "{{ number }}" "{{ passwd }}" 
    register: output
@@ -37,7 +41,8 @@
    when: dn != "0"
  
  - name: "Not available user notification"
-   command: python PYAT-sms-poc/send_sms_not.py "{{ number }}"    
+   command: python PYAT-sms-poc/send_sms_not.py "{{ item._source.number }}"    
+   become: yes
    when: dn == "0"
 
  
