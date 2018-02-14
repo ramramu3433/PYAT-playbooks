@@ -1,48 +1,80 @@
 ---
+ 
+   
+   
  - name: "Domain name find" 
-   command: python  PYAT-sms-poc/ldapsearch.py '{{ item._source.number }}'
+   command: python  PYAT-sms-poc/ldapsearch.py '{{ item._source.number }}' '{{ item._source.message  }}' 
    register: result
  - set_fact:  dn={{ result.stdout_lines[1] }}
-     
+ 
+    
  - name: "Password generation from slap"
    shell: slappasswd -g -s password
    register: output   
  - set_fact: passwd={{ output.stdout }}
  - debug: var=output.stdout
-   when: dn != "0"
+   when: dn != "0" and ( item._source.message == "PWDRST" or item._source.message == "UNACR")
 
  - name: "Move template file for password change"
    template: src=templates/pchange.ldiff.j2 dest=/home/labadmin/PYAT-sms-poc/pchange.ldif
-   when:  item._source.message  == "PWDRST" and  dn != "0"
+   when:  (item._source.message  == "PWDRST" or item._source.message == "UNACR") and  dn != "0"
+
+ - name: "Move File for Account unlock or Account unlock &PWDRST"
+   template: src=templates/unlock.ldiff.j2 dest=/home/labadmin/PYAT-sms-poc/unlock.ldif
+   when: (item._source.message == "UNAC" or item._source.message== "UNACR")  and dn !=0
+
+ - name: " Account Unlocking "
+   shell: ldapmodify -D cn="admin,dc=prolab,dc=com" -w we1c@me -f  PYAT-sms-poc/unlock.ldif 
+   when: (item._source.message == "UNAC" or item._source.message=="UNACR" ) and dn !=0
 
  - name: "Password reseting"
    shell: ldapmodify -D cn="admin,dc=prolab,dc=com" -w we1c@me -f PYAT-sms-poc/pchange.ldif
-   when: item._source.message  == "PWDRST" and dn !=0
+   when: ( item._source.message  == "PWDRST" or item._source.message == "UNACR" )  and dn !=0
+   
  - name: "Message Format Error"
-   shell: python PYAT-sms-poc/send_sms.py "{{ number }}" "Kindly Use these Codes Password Reset-PWDRST /n Unlock Account-UNAC  Unlock Account and Reset Password-UNACR"
-   when: item._source.message != "PWDRST" 
+   shell: python PYAT-sms-poc/send_sms.py "{{item._source.number}}" 'Kindly use these codes -- Password Reset-PWDRST. Unlock Account-UNAC. Unlock Account and Reset Password-UNACR'
+   when: dn != "0" and  not ( item._source.message =="PWDRST" or item._source.message == "UNAC" or item._source.message == "UNACR"  )
    become: yes
-   when: dn != "0"
-
+   
  - name: "ELk update"
-   command: python PYAT-sms-poc/update.py '{{item._id}}'
+   command: python PYAT-sms-poc/update.py '{{item._id}}' 
    register: output
- - set_fact: number={{ item._source.number }}
-   when: dn != "0"
+   when: dn != "0" and item._source.message == "PWDRST"  or item._source.message == "UNAC" or item._source.message == "UNACR"
+ 
+ - name: "ELk update For Wrong code received"
+   command: python PYAT-sms-poc/update_errorcode.py '{{item._id}}' 
+   register: output
+   when: dn != "0" and not ( item._source.message == "PWDRST"  or item._source.message == "UNAC" or item._source.message == "UNACR" ) 
 
  - name: "NA ELK update"
-   command: python PYAT-sms-poc/update_na.py '{{item._id}}'
+   command: python PYAT-sms-poc/update.py '{{item._id}}' "not_registered"
    when: dn == "0" 
     
- - name: "User notification" 
-   command: python PYAT-sms-poc/send_sms.py "{{ number }}" "{{ passwd }}" 
+ - name: "User notification For Password reset "  
+   command: python PYAT-sms-poc/send_sms.py "{{ item._source.number}}" "Your password is {{ passwd }}<space>" 
    register: output
    become: yes
-   when: dn != "0"
+   when: dn != "0" and item._source.message=="PWDRST"
+
+ - name: "User Notification for Account unlock" 
+   command: python PYAT-sms-poc/send_sms.py "{{ item._source.number}}" "Your account is unlocked successfully , You can login into the machine"
+   register: output
+   become: yes
+   when: dn != "0" and item._source.message=="UNAC"
+
+ - name: "User Notification for Account unlock and Password Reset"
+   command: python PYAT-sms-poc/send_sms.py "{{ item._source.number}}" "Your account is unlocked successfully .You can login into the machine using the temporary password {{ passwd }}<space>"
+   register: output
+   become: yes
+   when: dn != "0" and item._source.message=="UNACR"
  
  - name: "Not available user notification"
    command: python PYAT-sms-poc/send_sms_not.py "{{ item._source.number }}"    
    become: yes
-   when: dn == "0"
-
+   when: dn == "0" and item._source.message == "PWDRST"
+ 
+ - name: "Not locked"
+   command: python PYAT-sms-poc/send_sms.py "{{ item._source.number }}" " Your account is not locked"
+   become: yes
+   when:  dn == "0" and item._source.message == "UNAC" 
  
