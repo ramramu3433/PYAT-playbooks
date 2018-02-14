@@ -74,7 +74,7 @@
    when: dn == "0" and item._source.message == "PWDRST"
  
  - name: "Not locked"
-   command: python PYAT-sms-poc/send_sms.py "{{ item._source.number }}" " Your account is not locked"
+   command: python PYAT-sms-poc/send_sms.py "{{ item._source.number }}" " Your account is not locked, may be try with registered number"
    become: yes
    when:  dn == "0" and item._source.message == "UNAC" 
  
